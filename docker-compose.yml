@@ -1,0 +1,85 @@
+version: '3.8'
+services:
+  db:
+    image: postgres:13
+    ports:
+      - '5432:5432'
+    healthcheck:
+      test: 
+        - CMD-SHELL
+        - pg_isready -U hasura -d postgres
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - type: volume
+        source: db_data
+        target: /var/lib/postgresql/data
+      - db_sock:/var/run/postgresql
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: hasura
+      POSTGRES_PASSWORD: secret
+      TZ: Asia/Tokyo
+
+  hasura:
+    image: hasura/graphql-engine:v2.16.1.cli-migrations-v3
+    ports:
+      - '8080:8080'
+    depends_on:
+      db:
+        condition: service_healthy
+      rs:
+        condition: service_healthy
+    volumes:
+      - db_sock:/var/run/postgresql:ro
+    restart: on-failure:10
+    environment:
+      HASURA_GRAPHQL_DATABASE_URL: postgres://hasura:secret@/postgres?host=/var/run/postgresql
+      HASURA_GRAPHQL_ENABLE_CONSOLE: 'false'
+      HASURA_GRAPHQL_DEV_MODE: 'true'
+      HASURA_GRAPHQL_ENABLED_LOG_TYPES: startup, http-log, webhook-log, websocket-log, query-log
+      HASURA_GRAPHQL_LOG_LEVEL: warn
+      HASURA_GRAPHQL_ENABLE_REMOTE_SCHEMA_PERMISSIONS: 'true'
+      REMOTE_SCHEMA_ENDPOINT: http://rs:8081/graphql
+      HASURA_GRAPHQL_ADMIN_SECRET: secret
+
+  rs:
+    build:
+      context: rs
+      dockerfile: docker/local/Dockerfile
+    tty: true
+    command: 'air -c .air.toml'
+    ports:
+      - '8081:8081'
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: 'curl localhost:8081/healthz'
+      interval: 1s
+      timeout: 1s
+      retries: 10
+      start_period: 10s
+    volumes:
+      - type: bind
+        source: ./rs
+        target: /go/src/rs
+      - type: volume
+        source: go_modules
+        target: /go/pkg/mod
+      - db_sock:/var/run/postgresql:ro
+    environment:
+      GO_ENV: local
+      PORT: 8081
+      DB_URL: postgres://hasura:secret@/postgres?host=/var/run/postgresql
+      PSQL_HOST: /var/run/postgresql
+      PSQL_DBNAME: postgres
+      PSQL_USER: hasura
+      PSQL_PASS: secret
+      PSQL_SSLMODE: disable
+
+volumes:
+  db_data:
+  db_sock:
+  go_modules:
