@@ -6,6 +6,7 @@ require (
 	github.com/99designs/gqlgen v0.17.22
 	github.com/golang/mock v1.6.0
 	github.com/golangci/golangci-lint v1.50.1
+	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/vektah/gqlparser/v2 v2.5.1
 	github.com/volatiletech/sqlboiler/v4 v4.14.0
 )
